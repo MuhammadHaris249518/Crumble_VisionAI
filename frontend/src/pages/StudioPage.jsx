@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import Header from "../components/studio/Header";
 import UploadPanel from "../components/studio/UploadPanel";
 import AnnotationPanel from "../components/studio/AnnotationPanel";
@@ -8,6 +8,7 @@ import ProgressIndicator from "../components/studio/ProgressIndicator";
 import ComparisonView from "../components/studio/ComparisonView";
 import DownloadButton from "../components/studio/DownloadButton";
 import { useStudioState, STATUS } from "../state/studioStore";
+import { generateImage } from "../services/api";
 
 export default function StudioPage() {
   const studio = useStudioState();
@@ -15,6 +16,7 @@ export default function StudioPage() {
   const canGenerate = useMemo(() => {
     return (
       Boolean(studio.image) &&
+      Boolean(studio.image.id) &&
       studio.prompt.trim().length > 0 &&
       studio.status !== STATUS.GENERATING
     );
@@ -22,14 +24,25 @@ export default function StudioPage() {
     // && Boolean(studio.mask)
   }, [studio.image, studio.prompt, studio.status]);
 
-  const handleGenerate = () => {
-    // Placeholder only — wired to POST /api/v1/generations in KPI 9.
-    console.log("Generate clicked with:", {
-      image: studio.image,
-      mask: studio.mask,
-      prompt: studio.prompt,
-    });
-  };
+  const handleGenerate = useCallback(async () => {
+    if (!studio.image?.id) return;
+
+    studio.setStatus(STATUS.GENERATING);
+    studio.setError(null);
+
+    try {
+      const result = await generateImage({
+        imageId: studio.image.id,
+        prompt: studio.prompt,
+      });
+
+      studio.setResult({ url: result.result_url });
+      studio.setStatus(STATUS.COMPLETE);
+    } catch (err) {
+      studio.setError(err.message || "Generation failed.");
+      studio.setStatus(STATUS.FAILED);
+    }
+  }, [studio]);
 
   return (
     <div className="min-h-screen bg-surface">

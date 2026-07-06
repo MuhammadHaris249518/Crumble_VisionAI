@@ -36,7 +36,7 @@ def test_upload_valid_png():
 
 
 def test_upload_valid_jpg():
-    data = make_image_bytes("JPEG")``
+    data = make_image_bytes("JPEG")
     resp = client.post(
         "/api/v1/images/upload",
         files={"file": ("cookie.jpg", data, "image/jpeg")},
