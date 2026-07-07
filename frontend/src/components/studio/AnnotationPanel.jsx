@@ -1,147 +1,143 @@
-import { useState, useEffect, useCallback } from "react";
-import { Lock, ExternalLink, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
-import { createRoboflowSession, fetchRoboflowMask } from "../../services/api";
+// Repo path: frontend/src/components/studio/AnnotationPanel.jsx  (REWRITTEN)
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Lock } from "lucide-react";
+import AnnotationCanvas from "./annotation/AnnotationCanvas";
+import Toolbar from "./annotation/Toolbar";
+import { useAnnotationHistory } from "../../hooks/useAnnotationHistory";
+import { rasterizeMask, hasPaintedRegion } from "../../lib/annotation/maskEngine";
+
+const PANEL_HEIGHT = 360;
 
 /**
- * Roboflow-backed mask annotation panel (FR-03/FR-04/FR-05/FR-06, KPI 5/6).
- *
- * Roboflow doesn't ship an embeddable end-user annotation widget, so the
- * real flow is: upload the image into your Roboflow project, send the user
- * to Roboflow's own hosted Annotate page for that image, then poll Roboflow
- * for the finished annotation and convert it into a mask. An iframe is
- * attempted first for workspaces that allow framing; the "Open Roboflow
- * Annotator" link/button is the reliable fallback.
+ * Holds all per-image annotation state (tool, brush size, shape history,
+ * natural image size). Mounted with key={image.id} by the parent so a new
+ * upload gets a fresh instance — and therefore fresh state — for free,
+ * instead of imperatively resetting state in an effect.
  */
-export default function AnnotationPanel({ image, mask, onMaskChange }) {
-  const [session, setSession] = useState(null); // { roboflow_image_id, annotate_url }
-  const [starting, setStarting] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [iframeFailed, setIframeFailed] = useState(false);
-  const [error, setError] = useState(null);
+function AnnotationWorkspace({ image, onMaskChange }) {
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
+  const [tool, setTool] = useState("brush");
+  const [brushSize, setBrushSize] = useState(28);
+
+  const { shapes, commit, undo, redo, canUndo, canRedo, reset } = useAnnotationHistory([]);
 
   useEffect(() => {
-    setSession(null);
-    setIframeFailed(false);
-    setError(null);
-  }, [image?.id]);
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-  const startSession = useCallback(async () => {
-    if (!image?.id) return;
-    setStarting(true);
-    setError(null);
-    try {
-      const result = await createRoboflowSession(image.id);
-      setSession(result);
-    } catch (err) {
-      setError(err.message || "Could not start the Roboflow annotation session.");
-    } finally {
-      setStarting(false);
+  const handleCommitShape = useCallback(
+    (shape) => {
+      const withId = { ...shape, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+      commit([...shapes, withId]);
+    },
+    [shapes, commit]
+  );
+
+  // Re-rasterize and hand the mask up whenever the committed shape history changes.
+  useEffect(() => {
+    if (!naturalSize.width || !naturalSize.height) return;
+
+    if (shapes.length === 0) {
+      onMaskChange?.(null);
+      return;
     }
-  }, [image]);
 
-  const checkForMask = useCallback(async () => {
-    if (!image?.id) return;
-    setChecking(true);
-    setError(null);
-    try {
-      const result = await fetchRoboflowMask(image.id);
-      if (result.ready) {
-        onMaskChange?.({ dataUrl: result.mask_data, previewUrl: result.mask_data });
-      } else {
-        setError(result.message || "Not annotated in Roboflow yet — finish drawing the mask, then check again.");
-      }
-    } catch (err) {
-      setError(err.message || "Could not check Roboflow for the mask.");
-    } finally {
-      setChecking(false);
+    const canvas = rasterizeMask(shapes, naturalSize.width, naturalSize.height);
+    if (!hasPaintedRegion(canvas)) {
+      onMaskChange?.(null);
+      return;
     }
-  }, [image, onMaskChange]);
 
-  const clearMask = () => onMaskChange?.(null);
+    const dataUrl = canvas.toDataURL("image/png");
+    onMaskChange?.({ dataUrl, previewUrl: dataUrl });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapes, naturalSize]);
 
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className="relative flex items-center justify-center overflow-hidden rounded-card border border-dashed border-gray-300 bg-surface"
+        style={{ minHeight: PANEL_HEIGHT }}
+      >
+        <AnnotationCanvas
+          ref={canvasRef}
+          imageUrl={image.previewUrl}
+          tool={tool}
+          brushSize={brushSize}
+          shapes={shapes}
+          onCommitShape={handleCommitShape}
+          containerSize={{ width: containerWidth, height: PANEL_HEIGHT }}
+          onImageLoad={setNaturalSize}
+        />
+      </div>
+
+      <div className="mt-3">
+        <Toolbar
+          tool={tool}
+          onToolChange={setTool}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onZoomIn={() => canvasRef.current?.zoomIn()}
+          onZoomOut={() => canvasRef.current?.zoomOut()}
+          onZoomReset={() => canvasRef.current?.resetView()}
+          onClearAll={reset}
+          hasShapes={shapes.length > 0}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
+ * FR-03/FR-04/FR-05 (KPI 5/6/7): in-house brush/eraser/rectangle/polygon
+ * annotation tool. Produces a black/white PNG mask (white = editable
+ * region) at the exact pixel dimensions of the uploaded image, handed to
+ * the parent via onMaskChange — the same {dataUrl, previewUrl} contract
+ * used everywhere else in the studio, regardless of which drawing engine
+ * sits behind it.
+ */
+export default function AnnotationPanel({ image, mask, onMaskChange }) {
   return (
     <div className="rounded-card border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-text-primary">2. Annotate Region (Roboflow)</h2>
+        <h2 className="text-sm font-semibold text-text-primary">2. Annotate Region</h2>
         {mask && (
           <span className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-            <CheckCircle2 className="h-3 w-3" /> Mask ready
+            Mask ready
           </span>
         )}
       </div>
 
       {!image ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-card border border-dashed border-gray-300 bg-surface p-6 text-center">
+        <div
+          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-gray-300 bg-surface p-6 text-center"
+          style={{ minHeight: PANEL_HEIGHT }}
+        >
           <Lock className="h-7 w-7 text-text-secondary" />
-          <p className="text-sm font-medium text-text-primary">Upload an image to begin annotation</p>
+          <p className="text-sm font-medium text-text-primary">
+            Upload an image to begin annotation
+          </p>
           <p className="max-w-xs text-xs text-text-secondary">
-            You'll annotate it in Roboflow, then bring the mask back here.
+            Paint, draw a rectangle, or trace a polygon over the region you want the AI to
+            modify.
           </p>
-        </div>
-      ) : !session ? (
-        <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-card border border-dashed border-gray-300 bg-surface p-6 text-center">
-          <p className="text-sm text-text-secondary">
-            Ready to send this image to Roboflow for annotation.
-          </p>
-          <button
-            type="button"
-            onClick={startSession}
-            disabled={starting || !image.id}
-            className="rounded-card bg-accent px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
-          >
-            {starting ? "Uploading to Roboflow…" : "Start Roboflow Annotation"}
-          </button>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {!iframeFailed && (
-            <iframe
-              title="Roboflow Annotator"
-              src={session.annotate_url}
-              onError={() => setIframeFailed(true)}
-              className="h-[420px] w-full rounded-card border border-gray-200"
-            />
-          )}
-          <a          
-            href={session.annotate_url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 rounded-card border border-gray-200 px-3 py-2 text-xs font-medium text-text-primary hover:bg-surface"
-          >
-            <ExternalLink className="h-3.5 w-3.5" /> Open Roboflow Annotator in a new tab
-          </a>
-
-          <p className="text-xs text-text-secondary">
-            Draw the region to edit in Roboflow (white = editable area), save it there, then come back and check for the mask.
-          </p>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={checkForMask}
-              disabled={checking}
-              className="flex flex-1 items-center justify-center gap-1 rounded-card bg-accent px-3 py-2 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-60"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
-              {checking ? "Checking Roboflow…" : "Check for Finished Mask"}
-            </button>
-            {mask && (
-              <button
-                type="button"
-                onClick={clearMask}
-                className="rounded-card border border-gray-200 px-3 py-2 text-xs font-medium text-text-secondary hover:bg-surface"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          {error && (
-            <p className="flex items-start gap-1 text-xs text-alert">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}
-            </p>
-          )}
-        </div>
+        <AnnotationWorkspace key={image.id} image={image} onMaskChange={onMaskChange} />
       )}
     </div>
   );

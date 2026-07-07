@@ -1,8 +1,10 @@
 # Crumb Studio AI — KPI & Readiness Plan
 
 **Scope:** Single-page synthetic defect generation MVP
-**Split:** Two parallel workstreams — (A) UI + Backend + Roboflow annotation integration, and (B) AI model fine-tuning
+**Split:** Two parallel workstreams — (A) UI + Backend + in-house Konva-based annotation tool, and (B) AI model fine-tuning
 **Purpose of this document:** Define how each workstream measures progress, what "done" means for each, and the exact gate at which the two streams combine into a shippable product.
+
+**Revision note (this version):** Replaces all Roboflow-hosted-annotation KPIs with an in-house, browser-native annotation tool (React + Konva) built directly into the single page. Rationale: keeps users inside the application (no redirect to an external site), gives full control over UX/branding, and removes a third-party account/API dependency from the critical path — see `docs/annotation-tool-decision.md` for the full comparison against Roboflow and CVAT. The mask output contract (`black = protected`, `white = editable`, PNG at source-image resolution) is unchanged, so Workstream B is unaffected by this switch.
 
 ---
 
@@ -12,16 +14,16 @@ The application has two independent halves that can be built and validated in pa
 
 | | Workstream A — Application | Workstream B — Model |
 |---|---|---|
-| Owns | Single-page UI, upload flow, Roboflow-powered annotation, backend API, image comparison, download | Fine-tuning the masked-image-generation model on cookie/biscuit defect data |
+| Owns | Single-page UI, upload flow, in-house Konva annotation tool, backend API, image comparison, download | Fine-tuning the masked-image-generation model on cookie/biscuit defect data |
 | Can be considered "done" without the other? | Yes — using a stub/placeholder generation response | Yes — evaluated offline on held-out image sets, independent of the UI |
-| Blocking dependency | None (Roboflow handles annotation independently of model readiness) | None (training data doesn't require the finished UI) |
+| Blocking dependency | None (the annotation tool ships entirely in-house, no external service dependency) | None (training data doesn't require the finished UI) |
 | Final step | Swap the stub generation call for the real fine-tuned model endpoint | Hand off a served model endpoint matching the agreed request/response contract |
 
 This means Workstream A can be marked **feature-complete and demo-ready** while Workstream B is still fine-tuning — the only remaining task at that point is swapping one API call.
 
 ---
 
-## 2. Workstream A — UI + Backend + Roboflow (this team's deliverable)
+## 2. Workstream A — UI + Backend + Annotation Tool (this team's deliverable)
 
 ### 2.1 Functional KPIs (Definition of Ready)
 
@@ -77,38 +79,40 @@ Each KPI below is independently testable and independently sign-off-able, so par
 
 ---
 
-**KPI 5 — Roboflow Annotation Interface: Embedded & Ready**
-- *Description:* Once an image is uploaded, the Roboflow annotation interface loads inline on the same page (no redirect, no new tab) with that image ready to annotate.
+**KPI 5 — Annotation Tool: Drawing Engine Ready**
+- *Description:* Once an image is uploaded, the in-house Konva-based annotation canvas loads inline on the same page (no redirect, no new tab, no external account) with brush, eraser, rectangle, and polygon tools available.
 - *Acceptance criteria:*
-  - [ ] Roboflow panel loads within 3 seconds of upload completing
-  - [ ] The correct uploaded image is the one loaded into Roboflow
-  - [ ] Annotation tools (brush/polygon, whichever Roboflow exposes) are usable inline
-  - [ ] No separate authentication step interrupts the flow for the end user
-- *Target:* ≥ 99% successful load rate in testing
-- *Status metric:* Load-success test log
+  - [ ] Canvas loads and is interactive within 1 second of upload completing (no external network round-trip required)
+  - [ ] The correct uploaded image is the one loaded onto the canvas, at full resolution
+  - [ ] Brush and eraser strokes render smoothly (no visible lag) up to typical upload resolutions (~4000×4000px)
+  - [ ] Rectangle and polygon tools draw, preview, and commit correctly, including polygon closing (click-first-vertex or Enter) and cancel (Esc)
+  - [ ] Zoom (scroll wheel) and pan (Pan tool, drag) both work without desyncing the drawing coordinate space
+- *Target:* 100% successful load rate in testing (no external dependency to fail against)
+- *Status metric:* Load-success test log + manual QA across brush/eraser/rect/polygon/zoom/pan
 
 ---
 
-**KPI 6 — Roboflow Mask Retrieval (Annotation Ready)**
-- *Description:* An annotation made in Roboflow can be retrieved via the Roboflow API as a usable mask and handed to the backend generation pipeline.
+**KPI 6 — Mask Rasterization Accuracy**
+- *Description:* The shape history recorded by the annotation tool (strokes, rectangles, polygons) rasterizes into a usable black/white PNG mask at the exact pixel dimensions of the source image, and is handed to the backend generation pipeline.
 - *Acceptance criteria:*
-  - [ ] Mask is retrievable immediately after the user finishes annotating
-  - [ ] Mask format (polygon or raster) is documented and consistent
-  - [ ] Mask correctly corresponds to the region the user drew (spot-checked against source annotation)
-  - [ ] Backend can consume the mask format without additional conversion errors
-- *Target:* 100% of test annotations produce a valid, usable mask
-- *Status metric:* Mask validation test suite
+  - [ ] Mask is generated client-side immediately after each committed shape (no separate "export" step for the user)
+  - [ ] Mask dimensions exactly match the source image's natural width/height, regardless of the zoom level used while drawing
+  - [ ] White regions in the mask spatially correspond to what the user actually painted/drew (spot-checked visually against the source annotation)
+  - [ ] Eraser strokes correctly clear only previously painted regions, not the whole canvas
+  - [ ] Backend can consume the mask (base64 PNG) without additional conversion errors
+- *Target:* 100% of test annotations produce a valid, pixel-accurate mask
+- *Status metric:* Mask validation test suite (unit tests against `maskEngine.rasterizeMask`) + visual spot-check
 
 ---
 
-**KPI 7 — Annotation Editing (Edit / Clear / Reset)**
+**KPI 7 — Annotation Editing (Undo / Redo / Clear)**
 - *Description:* Before generating, the user can adjust their annotation without re-uploading the image.
 - *Acceptance criteria:*
-  - [ ] Edit: user can modify an existing annotation
-  - [ ] Clear: user can remove the current annotation and redraw
-  - [ ] Reset: user can return to a blank annotation state on the same image
+  - [ ] Undo/redo steps through the shape history one committed shape at a time, matching standard editor semantics (drawing after an undo discards the redo branch)
+  - [ ] Clear all removes every shape and returns the mask state to "no mask" (Generate becomes disabled again)
+  - [ ] Switching brush size or tool mid-session doesn't lose already-committed shapes
   - [ ] None of these actions require a re-upload or full page reload
-- *Target:* All three actions work without state loss elsewhere on the page (prompt text, etc.)
+- *Target:* All actions work without state loss elsewhere on the page (prompt text, uploaded image, etc.)
 - *Status metric:* Manual QA pass
 
 ---
@@ -126,7 +130,7 @@ Each KPI below is independently testable and independently sign-off-able, so par
 ---
 
 **KPI 9 — Backend: Generate Endpoint & Contract**
-- *Description:* The backend exposes a generation endpoint accepting `{image_reference, roboflow_mask, prompt}` and returns a response in the agreed shape — against a stubbed model response until Workstream B is ready.
+- *Description:* The backend exposes a generation endpoint accepting `{image_reference, mask_data, prompt}` and returns a response in the agreed shape — against a stubbed model response until Workstream B is ready.
 - *Acceptance criteria:*
   - [ ] Endpoint accepts the full payload and returns a syntactically valid response every time
   - [ ] Response shape matches what Workstream B has agreed to return (so swapping the stub for the real model requires no frontend change)
@@ -198,7 +202,7 @@ Each KPI below is independently testable and independently sign-off-able, so par
 | KPI | Target |
 |---|---|
 | Time to first interactive (page load) | < 2.5s on a standard broadband connection |
-| Roboflow annotation panel load time | < 3s after image upload |
+| Annotation canvas ready time | < 1s after image upload (client-side, no network round-trip) |
 | UI responsiveness during generation wait | No blocked interactions; cancel/reset remains usable |
 | Cross-browser support | Latest Chrome, Edge, Safari, Firefox |
 | Mobile layout | Usable (not necessarily annotation-optimized) down to 375px width |
@@ -209,7 +213,7 @@ Workstream A is marked **ready** when:
 - [ ] All Functional KPIs in 2.1 pass
 - [ ] All Non-functional KPIs in 2.2 are met
 - [ ] The `/api/generate` endpoint is fully built against a **stubbed** model response matching the real model's expected output shape (image bytes/URL + metadata)
-- [ ] The Roboflow mask export format is confirmed and documented for Workstream B to consume
+- [ ] The in-house mask export format (black/white PNG, source-image resolution) is confirmed and documented for Workstream B to consume
 - [ ] A short handoff note exists describing exactly where in the code the stub call is replaced by the live model endpoint
 
 At this point, **the UI and backend are ready** — the only remaining integration work is pointing the existing `/api/generate` call at Workstream B's served model instead of the stub.
@@ -222,33 +226,33 @@ At this point, **the UI and backend are ready** — the only remaining integrati
 
 | KPI | Target |
 |---|---|
-| Mask fidelity | Generated edits stay within the provided Roboflow mask boundary in ≥ 95% of evaluation samples |
+| Mask fidelity | Generated edits stay within the provided annotation mask boundary in ≥ 95% of evaluation samples |
 | Background preservation | Pixels outside the mask remain unchanged (PSNR/SSIM above an agreed threshold vs. the source image) |
 | Prompt adherence | Generated defect visually matches the prompt category (burned / cracked / moldy / chocolate chips / underbaked / broken edge) in ≥ 90% of human-reviewed samples |
 | Realism | Blind human review rates the generated region as realistic (not obviously synthetic) in ≥ 80% of samples |
 | Inference latency | Single-image generation completes in an agreed target (e.g. < 8s) suitable for the UI's progress indicator |
-| API contract compliance | Served model endpoint accepts `{image, roboflow_mask, prompt}` and returns the agreed response shape without modification needed on the frontend/backend side |
+| API contract compliance | Served model endpoint accepts `{image, mask_data, prompt}` and returns the agreed response shape without modification needed on the frontend/backend side |
 
 ### 3.2 Definition of "Ready" for Workstream B
 
 Workstream B is marked **ready** when:
 - [ ] All KPIs in 3.1 are met on the held-out evaluation set
 - [ ] The model is served behind an endpoint matching the contract Workstream A already built against
-- [ ] A sample batch of real Roboflow-exported masks (from Workstream A) has been tested successfully
+- [ ] A sample batch of real masks exported by the in-house annotation tool (from Workstream A) has been tested successfully
 
 ---
 
 ## 4. Integration Gate
 
 ```
-Workstream A (UI + Backend + Roboflow)  ─────►  READY  ──┐
+Workstream A (UI + Backend + Annotation Tool)  ─────►  READY  ──┐
                                                             ├──► Swap stub → live model call ──► MVP SHIPPED
 Workstream B (Model fine-tuning)         ─────►  READY  ──┘
 ```
 
-- If **A is ready before B**: ship the app in demo mode against the stub, clearly labeled as using placeholder generation, so stakeholders can review the full flow (upload → Roboflow annotate → prompt → compare → download) immediately.
-- If **B is ready before A**: validate the model against real Roboflow-exported masks as soon as they're available, ahead of full UI completion.
-- **MVP is considered shipped** only once both are ready and the stub call has been replaced by the live model endpoint, with one end-to-end smoke test run (upload → Roboflow annotation → prompt → generate → compare → download) passing against the real model.
+- If **A is ready before B**: ship the app in demo mode against the stub, clearly labeled as using placeholder generation, so stakeholders can review the full flow (upload → annotate → prompt → compare → download) immediately.
+- If **B is ready before A**: validate the model against real in-house-annotation-tool masks as soon as they're available, ahead of full UI completion.
+- **MVP is considered shipped** only once both are ready and the stub call has been replaced by the live model endpoint, with one end-to-end smoke test run (upload → annotate → prompt → generate → compare → download) passing against the real model.
 
 ---
 

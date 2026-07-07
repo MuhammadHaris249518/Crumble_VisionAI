@@ -8,7 +8,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     APP_NAME: str = "Crumb Studio AI Backend"
 
-    DATABASE_URL: str = "sqlite:///./crumb_studio.db"
+    # Must be set via .env — PostgreSQL with psycopg2 driver.
+    # See env.example for the expected format.
+    DATABASE_URL: str = ""
 
     # Image upload (KPI 2)
     UPLOAD_DIR: str = "storage/uploads"
