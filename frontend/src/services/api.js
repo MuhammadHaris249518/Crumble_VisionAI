@@ -23,18 +23,19 @@ export async function uploadImage(file) {
 
 /**
  * Generate a synthetic defect image.
- * Currently uses a stub endpoint that echoes back the original image
- * (since the AI model is not yet implemented — Workstream B).
  *
- * In the future this will accept { image_id, roboflow_mask, prompt }.
+ * Sends { image_id, prompt, mask_data } where mask_data is the base64 PNG
+ * data URI produced by the in-browser annotation tool (white = region to
+ * edit, black = untouched).
  */
-export async function generateImage({ imageId, prompt }) {
+export async function generateImage({ imageId, prompt, maskDataUrl }) {
   const res = await fetch(`${BASE}/generations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       image_id: imageId,
       prompt: prompt,
+      mask_data: maskDataUrl,
     }),
   });
 

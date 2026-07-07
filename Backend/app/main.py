@@ -13,7 +13,7 @@ from app.db.session import engine
 
 settings = get_settings()
 
-for directory in [settings.UPLOAD_DIR, "storage/results", "storage"]:
+for directory in [settings.UPLOAD_DIR, "storage/results", "storage/masks", "storage"]:
     Path(directory).mkdir(parents=True, exist_ok=True)
 
 # Dev-friendly table creation. Swap for Alembic migrations once the schema
