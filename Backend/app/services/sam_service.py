@@ -30,6 +30,34 @@ def _rasterize_box(box: list[int], width: int, height: int) -> np.ndarray:
     return np.array(img) > 128
 
 
+def _save_debug_mask_preview(clipped_mask: np.ndarray, image_id: str) -> Path:
+    """
+    Writes a black/white PNG purely for visual debugging of SAM's
+    segmentation quality. This is NOT the mask returned to the frontend and
+    is NOT read by anything else in the codebase — generation_service.py's
+    _load_mask() still expects white=editable, unchanged by this function.
+
+    Convention here (intentionally the inverse of the real mask contract,
+    because it reads more naturally for a human scanning a folder of
+    results — "black marks what changed"):
+      - Black (0)   = region MobileSAM selected
+      - White (255) = everything else
+
+    Saved to storage/results/mask_preview_<image_id>.png. Safe to call on
+    every /sam/segment request; each call overwrites the previous preview
+    for that image_id.
+    """
+    preview_dir = Path(__file__).resolve().parent.parent / "storage" / "results"
+    preview_dir.mkdir(parents=True, exist_ok=True)
+
+    inverted = np.where(clipped_mask, 0, 255).astype(np.uint8)
+    preview_path = preview_dir / f"mask_preview_{image_id}.png"
+    Image.fromarray(inverted, mode="L").save(preview_path)
+
+    logger.info("Saved SAM debug mask preview to %s", preview_path)
+    return preview_path
+
+
 def segment_within_box(
     source_path: Path,
     image_id: str,
@@ -49,6 +77,8 @@ def segment_within_box(
 
     selection_ceiling = _rasterize_box(box, width, height)
     clipped_mask = raw_mask & selection_ceiling  # AND: never exceed the user's box
+
+    _save_debug_mask_preview(clipped_mask, image_id)
 
     mask_uint8 = clipped_mask.astype(np.uint8) * 255
     mask_img = Image.fromarray(mask_uint8, mode="L")

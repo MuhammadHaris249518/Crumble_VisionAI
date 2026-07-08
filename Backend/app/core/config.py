@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ROBOFLOW_API_BASE: str = "https://api.roboflow.com"
     ROBOFLOW_APP_BASE: str = "https://app.roboflow.com"
 
+    # MobileSAM
+    SAM_WEIGHTS_DIR: str = "app/ml/sam/weights"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -13,10 +13,14 @@ import numpy as np
 import torch
 from PIL import Image
 
+from app.core.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 _MODEL_TYPE = "vit_t"
-_CHECKPOINT = Path(__file__).parent / "weights" / "mobile_sam.pt"
+
+_settings = get_settings()
+_CHECKPOINT = Path(_settings.SAM_WEIGHTS_DIR) / "mobile_sam.pt"
 
 _lock = threading.Lock()
 _predictor = None

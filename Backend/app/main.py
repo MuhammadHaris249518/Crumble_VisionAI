@@ -20,6 +20,18 @@ for directory in [settings.UPLOAD_DIR, "storage/results", "storage/masks", "stor
 Base.metadata.create_all(bind=engine)
 run_migrations()
 
+# Surface missing MobileSAM checkpoint at startup (not on first request)
+from app.ml.sam.predictor import _CHECKPOINT as SAM_CHECKPOINT_PATH  # noqa: E402
+
+if not SAM_CHECKPOINT_PATH.exists():
+    import logging
+    logging.getLogger(__name__).warning(
+        "MobileSAM checkpoint not found at %s — /api/v1/sam/segment will "
+        "return 503 until it is downloaded. Run "
+        "`python scripts/download_sam_weights.py` from Backend/.",
+        SAM_CHECKPOINT_PATH,
+    )
+
 app = FastAPI(title=settings.APP_NAME)
 
 app.add_middleware(
