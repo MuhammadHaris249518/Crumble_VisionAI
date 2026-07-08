@@ -79,11 +79,15 @@ export async function fetchRoboflowMask(imageId) {
 }
 
 /**
- * Runs the MobileSAM AI experiment for a single clicked point on the image.
+ * Runs box-prompted MobileSAM segmentation for the user's dragged rectangle.
  * Returns { mask_data } where mask_data is a data: URL PNG mask
  * (white = editable region), matching the studio's mask contract.
+ *
+ * Backend contract (POST /api/v1/sam/segment):
+ *   { image_id: string, box: [x0, y0, x1, y1], point?: { x, y } }
+ * `box` is required (in image pixel coordinates). `point` is optional.
  */
-export async function segmentWithSam({ imageId, pointX, pointY }) {
+export async function segmentWithSam({ imageId, box, point }) {
   const res = await fetch(`${BASE}/sam/segment`, {
     method: "POST",
     headers: {
@@ -91,8 +95,8 @@ export async function segmentWithSam({ imageId, pointX, pointY }) {
     },
     body: JSON.stringify({
       image_id: imageId,
-      point_x: pointX,
-      point_y: pointY,
+      box,
+      ...(point ? { point } : {}),
     }),
   });
 

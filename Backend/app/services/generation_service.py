@@ -19,8 +19,15 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-_RESULT_DIR = _BACKEND_ROOT / "storage" / "results"
+# IMPORTANT: This must resolve to the SAME directory that the `/storage`
+# StaticFiles mount in `app/main.py` serves (it uses `Path("storage").resolve()`,
+# i.e. a CWD-relative path). If we wrote results under the package root
+# (`Backend/storage/...`) while the mount serves `<cwd>/storage/...`, the two
+# would diverge whenever the app is launched from a directory other than
+# `Backend/`, the frontend's `/storage/results/...` <img> would 404, and the
+# generated image would never appear in ComparisonView. Keeping both
+# CWD-relative guarantees they always align.
+_RESULT_DIR = Path("storage/results").resolve()
 
 
 def _load_mask(mask_path: str, target_size: tuple[int, int]) -> np.ndarray:
