@@ -1,223 +1,179 @@
-import { useRef, useState, useEffect, useCallback } from "react";
-import { Lock, Paintbrush2, Eraser, RotateCcw, CheckCircle2 } from "lucide-react";
+// Repo path: frontend/src/components/studio/AnnotationPanel.jsx  (REWRITTEN)
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Lock, Loader2 } from "lucide-react";
+import AnnotationCanvas from "./annotation/AnnotationCanvas";
+import Toolbar from "./annotation/Toolbar";
+import { useAnnotationHistory } from "../../hooks/useAnnotationHistory";
+import { rasterizeMask, hasPaintedRegion } from "../../lib/annotation/maskEngine";
+import { segmentWithSam } from "../../services/api";
+
+const PANEL_HEIGHT = 360;
 
 /**
- * Interactive mask annotation tool (FR-03/FR-04/FR-05, KPI 5/6).
- *
- * This paints the mask directly in the browser with an HTML canvas rather
- * than embedding Roboflow's hosted widget (that requires a Roboflow
- * account/API key this environment doesn't have). It produces a black/white
- * PNG mask (white = region to edit) and reports it via onMaskChange.
+ * Holds all per-image annotation state (tool, brush size, shape history,
+ * natural image size). Mounted with key={image.id} by the parent so a new
+ * upload gets a fresh instance — and therefore fresh state — for free,
+ * instead of imperatively resetting state in an effect.
  */
-export default function AnnotationPanel({ image, mask, onMaskChange }) {
-  const imgRef = useRef(null);
+function AnnotationWorkspace({ image, onMaskChange }) {
+  const containerRef = useRef(null);
   const canvasRef = useRef(null);
-  const isDrawing = useRef(false);
-  const [brushSize, setBrushSize] = useState(28);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState("brush");
-  const [hasStrokes, setHasStrokes] = useState(false);
+  const [brushSize, setBrushSize] = useState(28);
+  const [samLoading, setSamLoading] = useState(false);
+  const [samError, setSamError] = useState(null);
 
-  const syncCanvasSize = useCallback(() => {
-    const img = imgRef.current;
-    const canvas = canvasRef.current;
-    if (!img || !canvas) return;
-    const { width, height } = img.getBoundingClientRect();
-    if (width === 0 || height === 0) return;
-    canvas.width = width;
-    canvas.height = height;
-    setHasStrokes(false);
-  }, []);
+  const { shapes, commit, undo, redo, canUndo, canRedo, reset } = useAnnotationHistory([]);
+
+   // When the AI Select tool is used, call MobileSAM with the box the user dragged
+   // and feed the returned mask into the same contract the rest of the
+   // studio uses (dataUrl + previewUrl). This means Generate works unchanged.
+   const handleSamBoxReady = useCallback(
+     async (box) => {
+       if (!image?.id) return;
+       setSamLoading(true);
+       setSamError(null);
+       try {
+         const { mask_data } = await segmentWithSam({ imageId: image.id, box });
+         onMaskChange?.({ dataUrl: mask_data, previewUrl: mask_data });
+       } catch (err) {
+         setSamError(err.message || "AI segmentation failed.");
+       } finally {
+         setSamLoading(false);
+       }
+     },
+     [image, onMaskChange]
+   );
 
   useEffect(() => {
-    syncCanvasSize();
-    window.addEventListener("resize", syncCanvasSize);
-    return () => window.removeEventListener("resize", syncCanvasSize);
-  }, [image, syncCanvasSize]);
+    const el = containerRef.current;
+    if (!el) return undefined;
+ 
+ 
+    const observer = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-  const getPoint = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const src = e.touches && e.touches.length ? e.touches[0] : e;
-    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
-  };
+  const handleCommitShape = useCallback(
+    (shape) => {
+      const withId = { ...shape, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+      commit([...shapes, withId]);
+    },
+    [shapes, commit]
+  );
 
-  const paintAt = (x, y) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.globalCompositeOperation = tool === "erase" ? "destination-out" : "source-over";
-    ctx.fillStyle = "rgba(62, 124, 116, 0.55)";
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-  };
+  // Re-rasterize and hand the mask up whenever the committed shape history changes.
+  useEffect(() => {
+    if (!naturalSize.width || !naturalSize.height) return;
 
-  const exportMask = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const maskCanvas = document.createElement("canvas");
-    maskCanvas.width = canvas.width;
-    maskCanvas.height = canvas.height;
-    const mctx = maskCanvas.getContext("2d");
-    mctx.fillStyle = "#000000";
-    mctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-
-    const srcCtx = canvas.getContext("2d");
-    const srcData = srcCtx.getImageData(0, 0, canvas.width, canvas.height);
-    const outData = mctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    let painted = false;
-    for (let i = 0; i < srcData.data.length; i += 4) {
-      if (srcData.data[i + 3] > 10) {
-        outData.data[i] = 255;
-        outData.data[i + 1] = 255;
-        outData.data[i + 2] = 255;
-        outData.data[i + 3] = 255;
-        painted = true;
-      }
-    }
-    mctx.putImageData(outData, 0, 0);
-
-    if (!painted) {
+    if (shapes.length === 0) {
       onMaskChange?.(null);
       return;
     }
-    onMaskChange?.({
-      dataUrl: maskCanvas.toDataURL("image/png"),
-      previewUrl: canvas.toDataURL("image/png"),
-    });
-  }, [onMaskChange]);
 
-  const handleStart = (e) => {
-    if (!image) return;
-    e.preventDefault();
-    isDrawing.current = true;
-    setHasStrokes(true);
-    const { x, y } = getPoint(e);
-    paintAt(x, y);
-  };
+    const canvas = rasterizeMask(shapes, naturalSize.width, naturalSize.height);
+    if (!hasPaintedRegion(canvas)) {
+      onMaskChange?.(null);
+      return;
+    }
 
-  const handleMove = (e) => {
-    if (!isDrawing.current) return;
-    e.preventDefault();
-    const { x, y } = getPoint(e);
-    paintAt(x, y);
-  };
-
-  const handleStop = () => {
-    if (!isDrawing.current) return;
-    isDrawing.current = false;
-    exportMask();
-  };
-
-  const clearMask = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    setHasStrokes(false);
-    onMaskChange?.(null);
-  };
+    const dataUrl = canvas.toDataURL("image/png");
+    onMaskChange?.({ dataUrl, previewUrl: dataUrl });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapes, naturalSize]);
 
   return (
-    <div className="rounded-card border border-line bg-paper p-4 shadow-card">
+    <>
+      <div
+        ref={containerRef}
+        className="relative flex items-center justify-center overflow-hidden rounded-card border border-dashed border-gray-300 bg-surface"
+        style={{ minHeight: PANEL_HEIGHT }}
+      >
+        <AnnotationCanvas
+          ref={canvasRef}
+          imageUrl={image.previewUrl}
+          tool={tool}
+          brushSize={brushSize}
+          shapes={shapes}
+          onCommitShape={handleCommitShape}
+          onSamBoxReady={handleSamBoxReady}
+          containerSize={{ width: containerWidth, height: PANEL_HEIGHT }}
+          onImageLoad={setNaturalSize}
+        />
+        {samLoading && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-card bg-white/60">
+            <span className="flex items-center gap-2 text-sm font-medium text-accent">
+              <Loader2 className="h-4 w-4 animate-spin" /> AI is generating the mask…
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <Toolbar
+          tool={tool}
+          onToolChange={setTool}
+          brushSize={brushSize}
+          onBrushSizeChange={setBrushSize}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onZoomIn={() => canvasRef.current?.zoomIn()}
+          onZoomOut={() => canvasRef.current?.zoomOut()}
+          onZoomReset={() => canvasRef.current?.resetView()}
+          onClearAll={reset}
+          hasShapes={shapes.length > 0}
+        />
+        {samError && (
+          <p className="mt-2 text-xs font-medium text-alert">{samError}</p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * FR-03/FR-04/FR-05 (KPI 5/6/7): in-house brush/eraser/rectangle/polygon
+ * annotation tool. Produces a black/white PNG mask (white = editable
+ * region) at the exact pixel dimensions of the uploaded image, handed to
+ * the parent via onMaskChange — the same {dataUrl, previewUrl} contract
+ * used everywhere else in the studio, regardless of which drawing engine
+ * sits behind it.
+ */
+export default function AnnotationPanel({ image, mask, onMaskChange }) {
+  return (
+    <div className="rounded-card border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="step-tag">02</span>
-          <h2 className="font-display text-[15px] font-semibold text-text-primary">
-            Annotate Region
-          </h2>
-        </div>
+        <h2 className="text-sm font-semibold text-text-primary">2. Annotate Region</h2>
         {mask && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 font-mono text-[11px] font-medium text-success">
-            <CheckCircle2 className="h-3 w-3" /> Mask ready
+          <span className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+            Mask ready
           </span>
         )}
       </div>
 
-      <div className="relative flex min-h-[220px] items-center justify-center overflow-hidden rounded-card border border-dashed border-line bg-muted/40">
-        {!image ? (
-          <div className="flex flex-col items-center gap-2 p-6 text-center">
-            <Lock className="h-7 w-7 text-text-secondary" />
-            <p className="text-sm font-medium text-text-primary">
-              Upload an image to begin annotation
-            </p>
-            <p className="max-w-xs text-xs text-text-secondary">
-              Paint over the region you want the AI to modify.
-            </p>
-          </div>
-        ) : (
-          <div className="corner-frame relative w-full" style={{ "--corner-color": "#3E7C74" }}>
-            <img
-              ref={imgRef}
-              src={image.previewUrl}
-              alt="Uploaded"
-              onLoad={syncCanvasSize}
-              className="block w-full select-none rounded-card"
-              draggable={false}
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute left-0 top-0 h-full w-full touch-none cursor-crosshair"
-              onMouseDown={handleStart}
-              onMouseMove={handleMove}
-              onMouseUp={handleStop}
-              onMouseLeave={handleStop}
-              onTouchStart={handleStart}
-              onTouchMove={handleMove}
-              onTouchEnd={handleStop}
-            />
-          </div>
-        )}
-      </div>
-
-      {image && (
-        <>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTool("brush")}
-              className={`flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                tool === "brush"
-                  ? "border-accent bg-accent/10 text-accent-dark"
-                  : "border-line text-text-secondary hover:bg-muted"
-              }`}
-            >
-              <Paintbrush2 className="h-3.5 w-3.5" /> Brush
-            </button>
-            <button
-              type="button"
-              onClick={() => setTool("erase")}
-              className={`flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                tool === "erase"
-                  ? "border-accent bg-accent/10 text-accent-dark"
-                  : "border-line text-text-secondary hover:bg-muted"
-              }`}
-            >
-              <Eraser className="h-3.5 w-3.5" /> Erase
-            </button>
-            <label className="ml-auto flex items-center gap-2 font-mono text-xs text-text-secondary">
-              Brush
-              <input
-                type="range"
-                min="6"
-                max="80"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-                className="accent-accent"
-              />
-            </label>
-          </div>
-
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={clearMask}
-              disabled={!hasStrokes && !mask}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border border-line px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-clay/40 hover:text-clay disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:text-text-secondary"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Clear
-            </button>
-          </div>
-        </>
+      {!image ? (
+        <div
+          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-gray-300 bg-surface p-6 text-center"
+          style={{ minHeight: PANEL_HEIGHT }}
+        >
+          <Lock className="h-7 w-7 text-text-secondary" />
+          <p className="text-sm font-medium text-text-primary">
+            Upload an image to begin annotation
+          </p>
+          <p className="max-w-xs text-xs text-text-secondary">
+            Paint, draw a rectangle, or trace a polygon over the region you want the AI to
+            modify.
+          </p>
+        </div>
+      ) : (
+        <AnnotationWorkspace key={image.id} image={image} onMaskChange={onMaskChange} />
       )}
     </div>
   );

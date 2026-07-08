@@ -3,17 +3,19 @@
 Generation endpoint (FR-06, FR-08, FR-13, FR-14 / KPI 6, 9).
 
 Accepts {image_id, mask_data, prompt}, persists the mask and a
-Generation record for traceability, then calls the AI generation model.
+Generation record for traceability, then calls the AI generation model
+constrained to the user's mask region.
 
-Until Workstream B delivers the real fine-tuned model, generate_defect()
-returns a stub response that matches the agreed contract shape — so the
-frontend can be fully integrated and tested end-to-end. When the real
-model is ready, swap the logic in generate_defect() for a call to the
-served model endpoint; no frontend or contract changes are needed.
+Until Workstream B delivers the real fine-tuned model, the generation
+service applies a synthetic effect matched to the prompt category, but
+ONLY within the white region of the mask — the rest of the image is
+left untouched. When the real model is ready, swap the logic in
+generation_service.generate_defect() for a call to the served model
+endpoint; no frontend or contract changes are needed.
 """
 import base64
 import binascii
-import shutil
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +25,9 @@ from app.core.dependencies import get_db
 from app.core.storage import get_mask_storage
 from app.db import repository
 from app.schemas.generation import GenerationRequest, GenerationResponse
+from app.services.generation_service import generate_defect
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generations", tags=["generations"])
 
@@ -37,22 +42,6 @@ def _decode_mask(mask_data: str) -> bytes:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="mask_data is not valid base64-encoded image data.",
         ) from exc
-
-
-def generate_defect(source_path: Path, generation_id: str, prompt: str) -> Path:
-    """
-    Stub for Workstream B's masked-generation model.
-
-    Currently copies the original image as the "generated" result so the
-    full request/response contract can be exercised end-to-end. Replace
-    this body with a call to the served model — the signature and return
-    value stay the same.
-    """
-    result_dir = Path("storage/results")
-    result_dir.mkdir(parents=True, exist_ok=True)
-    result_path = result_dir / f"result_{generation_id}{source_path.suffix}"
-    shutil.copy2(str(source_path), str(result_path))
-    return result_path
 
 
 @router.post(
@@ -92,14 +81,17 @@ async def create_generation(
 
     # 4. Call the (stub) generation model, constrained to the masked region
     try:
-        result_path = generate_defect(source_path, generation.id, req.prompt)
+        result_path = generate_defect(source_path, mask_path, generation.id, req.prompt)
     except Exception as exc:  # noqa: BLE001 - surface any model failure as a clean 500
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error("Generation failed: %s\n%s", exc, error_detail)
         repository.update_generation_record(
             db, generation, status="failed", error_message=str(exc)
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Generation failed. Your image, mask, and prompt are unchanged — please retry.",
+            detail=f"Generation failed: {exc}",
         ) from exc
 
     generation = repository.update_generation_record(
