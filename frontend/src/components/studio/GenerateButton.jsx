@@ -9,7 +9,7 @@ export default function GenerateButton({ disabled, status, onClick }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center justify-center gap-2 rounded-card bg-accent px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-text-secondary"
+      className="flex w-full items-center justify-center gap-2 rounded-card bg-ink px-4 py-3 text-sm font-semibold text-text-onink shadow-card transition-all hover:bg-accent-dark active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-line disabled:text-text-secondary disabled:shadow-none"
     >
       {isGenerating ? (
         <>
