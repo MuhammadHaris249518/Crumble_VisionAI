@@ -1,63 +1,79 @@
 const BASE = "/api/v1";
 
 /**
- * Upload an image to the backend.
- * Returns { image_id, original_filename, content_type, size_bytes, created_at }
+ * Uploads an image file to the backend and returns the persisted image metadata.
+ * Returns { image_id, original_filename, content_type, size_bytes, created_at }.
  */
 export async function uploadImage(file) {
-  const form = new FormData();
-  form.append("file", file);
+  const formData = new FormData();
+  formData.append("file", file);
 
   const res = await fetch(`${BASE}/images/upload`, {
     method: "POST",
-    body: form,
+    body: formData,
   });
 
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body.detail || "Upload failed");
+    throw new Error(body.detail || "Could not upload image.");
   }
 
   return body;
 }
 
 /**
- * Generate a synthetic defect image.
- * Currently uses a stub endpoint that echoes back the original image
- * (since the AI model is not yet implemented — Workstream B).
- *
- * In the future this will accept { image_id, roboflow_mask, prompt }.
+ * Submits a generation request for an image, mask, and prompt.
+ * Returns { id, image_id, prompt, status, result_url, error_message, created_at, updated_at }.
  */
-export async function generateImage({ imageId, prompt }) {
+export async function generateImage({ imageId, prompt, maskDataUrl }) {
   const res = await fetch(`${BASE}/generations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       image_id: imageId,
-      prompt: prompt,
+      prompt,
+      mask_data: maskDataUrl,
     }),
   });
 
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body.detail || "Generation failed");
+    throw new Error(body.detail || "Could not generate image.");
   }
 
   return body;
 }
 
-// Repo path: frontend/src/services/api.js  (UPDATED — add this export)
-export async function saveAnnotationMask(imageId, maskDataUrl) {
-  const res = await fetch(`${BASE}/images/${imageId}/annotation`, {
+/**
+ * Creates (or reuses) a Roboflow annotation session for an uploaded image.
+ * Returns { roboflow_image_id, annotate_url }.
+ */
+export async function createRoboflowSession(imageId) {
+  const res = await fetch(`${BASE}/annotations/session?image_id=${encodeURIComponent(imageId)}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mask_data_url: maskDataUrl }),
   });
 
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body.detail || "Failed to save annotation.");
+    throw new Error(body.detail || "Could not start Roboflow annotation session.");
   }
 
-  return body; // { image_id, mask_url, mask_format, roboflow_status, roboflow_image_id, updated_at }
+  return body;
+}
+
+/**
+ * Polls Roboflow (via the backend) for a finished annotation.
+ * Returns { ready, mask_data, message } — mask_data is a data: URL when ready.
+ */
+export async function fetchRoboflowMask(imageId) {
+  const res = await fetch(`${BASE}/annotations/mask/${encodeURIComponent(imageId)}`);
+
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body.detail || "Could not fetch the Roboflow mask.");
+  }
+
+  return body;
 }

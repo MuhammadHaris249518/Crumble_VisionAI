@@ -1,3 +1,4 @@
-﻿from sqlalchemy.orm import declarative_base
+# Repo path: Backend/app/db/base.py
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()

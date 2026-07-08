@@ -13,19 +13,29 @@ import { generateImage } from "../services/api";
 export default function StudioPage() {
   const studio = useStudioState();
 
-// Repo path: frontend/src/pages/StudioPage.jsx  (UPDATED — only the canGenerate block changes)
+  const handleImageChange = useCallback(
+    (newImage) => {
+      studio.setImage(newImage);
+      studio.setMask(null);
+      studio.setResult(null);
+      studio.setError(null);
+      studio.setStatus(newImage ? STATUS.UPLOADED : STATUS.IDLE);
+    },
+    [studio]
+  );
+
   const canGenerate = useMemo(() => {
     return (
       Boolean(studio.image) &&
       Boolean(studio.image.id) &&
-      Boolean(studio.mask?.dataUrl) &&
+      Boolean(studio.mask) &&
       studio.prompt.trim().length > 0 &&
       studio.status !== STATUS.GENERATING
     );
   }, [studio.image, studio.mask, studio.prompt, studio.status]);
 
   const handleGenerate = useCallback(async () => {
-    if (!studio.image?.id) return;
+    if (!studio.image?.id || !studio.mask) return;
 
     studio.setStatus(STATUS.GENERATING);
     studio.setError(null);
@@ -34,6 +44,7 @@ export default function StudioPage() {
       const result = await generateImage({
         imageId: studio.image.id,
         prompt: studio.prompt,
+        maskDataUrl: studio.mask.dataUrl,
       });
 
       studio.setResult({ url: result.result_url });
@@ -45,15 +56,24 @@ export default function StudioPage() {
   }, [studio]);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-parchment">
       <Header />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
+        {studio.error && (
+          <div className="mb-6 rounded-card border border-clay/30 bg-clay/5 px-4 py-3 text-sm text-clay">
+            {studio.error}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.15fr_1fr]">
           <section className="flex flex-col gap-6">
-            <UploadPanel image={studio.image} onImageChange={studio.setImage} />
-        
-            <AnnotationPanel image={studio.image} onMaskChange={studio.setMask} />
+            <UploadPanel image={studio.image} onImageChange={handleImageChange} />
+            <AnnotationPanel
+              image={studio.image}
+              mask={studio.mask}
+              onMaskChange={studio.setMask}
+            />
           </section>
 
           <section className="flex flex-col gap-6">

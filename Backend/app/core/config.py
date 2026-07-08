@@ -1,4 +1,5 @@
-﻿from functools import lru_cache
+﻿# Repo path: Backend/app/core/config.py  (UPDATED)
+from functools import lru_cache
 from typing import List
 
 from pydantic_settings import BaseSettings
@@ -14,17 +15,14 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_IMAGE_CONTENT_TYPES: List[str] = ["image/jpeg", "image/png"]
 
-    # Annotation / mask storage (KPI 5)
-    MASK_DIR: str = "storage/masks"
-    MAX_MASK_SIZE_MB: int = 15
-
-    # Roboflow dataset sync (KPI 5/6) — best-effort, never blocks the UI.
-    # Leave these blank in local/dev .env to run with Roboflow sync disabled;
-    # the annotation flow works fully without them.
+    # Roboflow annotation integration (KPI 5/6).
+    # Values come from Backend/.env — see Backend/env.example for where to
+    # get each one. Left blank here on purpose; nothing should be hardcoded.
     ROBOFLOW_API_KEY: str = ""
     ROBOFLOW_WORKSPACE: str = ""
     ROBOFLOW_PROJECT: str = ""
-    ROBOFLOW_UPLOAD_TIMEOUT: int = 15  # seconds
+    ROBOFLOW_API_BASE: str = "https://api.roboflow.com"
+    ROBOFLOW_APP_BASE: str = "https://app.roboflow.com"
 
     class Config:
         env_file = ".env"
