@@ -382,52 +382,166 @@ This contract must **not** be inverted on either side without coordinated change
 
 ---
 
-## 7. File & Directory Layout (Backend)
+## 7. Complete File & Directory Layout
+
+This section documents the **full, detailed folder structure** of the monorepo as it exists in the repository.
+
+### 7.1 Monorepo Root
+
+```
+Crumble_VisionAI/
+├── .gitignore
+├── annotation-tool.patch         # Git patch capturing the in-house annotation tool changes
+├── KPI_Plan.md                   # KPI definitions + Workstream A/B integration gate
+├── README.md
+├── package-lock.json             # Root lockfile (legacy/shared tooling)
+├── .pytest_cache/                # Pytest cache (gitignored)
+├── storage/                      # Runtime uploads (when backend is launched from repo root)
+├── Backend/                      # FastAPI backend + ML inference
+├── frontend/                     # React + Vite single-page app
+├── docs/                         # Architecture, decisions, SRS
+└── ai_experiments/               # Research / model experimentation
+```
+
+### 7.2 Backend (`Backend/`)
 
 ```
 Backend/
 ├── app/
-│   ├── main.py                 # App entry, routers, static mount, startup
+│   ├── main.py                  # App entry, routers, static mount, startup
 │   ├── __init__.py
+│   ├── ai_client/
+│   │   └── inference_client.py  # Client to the (future) fine-tuned model endpoint
 │   ├── core/
-│   │   ├── config.py           # Pydantic settings (DATABASE_URL, upload limits, SAM/Roboflow)
-│   │   ├── dependencies.py     # get_db() session dependency
-│   │   └── storage.py          # LocalImageStorage / LocalMaskStorage
+│   │   ├── config.py            # Pydantic settings (DATABASE_URL, upload limits, SAM/Roboflow)
+│   │   ├── dependencies.py      # get_db() session dependency
+│   │   ├── security.py          # (reserved) password hashing / JWT helpers
+│   │   └── storage.py           # LocalImageStorage / LocalMaskStorage
 │   ├── db/
-│   │   ├── base.py             # declarative_base
-│   │   ├── session.py          # engine (Supabase/PostgreSQL), SessionLocal
-│   │   ├── models.py           # Image, Generation ORM models
-│   │   ├── repository.py       # CRUD data-access functions
-│   │   ├── migrate.py          # SQL migration runner
+│   │   ├── base.py              # declarative_base
+│   │   ├── session.py           # engine (Supabase/PostgreSQL), SessionLocal
+│   │   ├── models.py            # Image, Generation ORM models
+│   │   ├── repository.py        # CRUD data-access functions
+│   │   ├── migrate.py           # SQL migration runner
 │   │   └── migrations/
 │   │       └── 001_add_roboflow_image_id.sql
 │   ├── schemas/
-│   │   ├── image.py            # ImageUploadResponse, ErrorResponse
-│   │   └── generation.py       # GenerationRequest, GenerationResponse
+│   │   ├── image.py             # ImageUploadResponse, ErrorResponse
+│   │   ├── generation.py        # GenerationRequest, GenerationResponse
+│   │   ├── auth.py              # (reserved) auth schemas
+│   │   ├── user.py              # (reserved) user schemas
+│   │   ├── analytics.py         # (reserved) analytics schemas
+│   │   └── detection.py         # (reserved) detection schemas
 │   ├── services/
-│   │   ├── image_service.py    # upload validation + persistence
-│   │   ├── sam_service.py      # MobileSAM box-constrained segmentation
-│   │   └── generation_service.py  # synthetic defect engine (STUB for real model)
+│   │   ├── image_service.py     # upload validation + persistence
+│   │   ├── sam_service.py       # MobileSAM box-constrained segmentation
+│   │   ├── generation_service.py# synthetic defect engine (STUB for real model)
+│   │   ├── auth_service.py      # (reserved) auth service
+│   │   ├── user_service.py      # (reserved) user service
+│   │   ├── analytics_service.py # (reserved) analytics service
+│   │   └── detection_service.py # (reserved) detection service
 │   ├── ml/
+│   │   ├── __init__.py
 │   │   └── sam/
-│   │       ├── predictor.py    # cached MobileSAM wrapper (load + infer)
-│   │       └── weights/        # mobile_sam.pt (gitignored, downloaded)
+│   │       ├── __init__.py
+│   │       ├── predictor.py     # cached MobileSAM wrapper (load + infer)
+│   │       └── weights/
+│   │           └── mobile_sam.pt  # checkpoint (~40MB, gitignored, downloaded)
 │   ├── api/
 │   │   └── v1/
-│   │       ├── images.py       # POST /upload
-│   │       ├── sam.py          # POST /segment
-│   │       └── generations.py  # POST /, GET /{id}
-│   └── storage/                # runtime: uploads/, masks/, results/
+│   │       ├── images.py        # POST /upload
+│   │       ├── sam.py           # POST /segment
+│   │       ├── generations.py   # POST /, GET /{id}
+│   │       ├── auth.py          # (reserved) auth routes
+│   │       ├── users.py         # (reserved) user routes
+│   │       ├── analytics.py     # (reserved) analytics routes
+│   │       └── detections.py    # (reserved) detection routes
+│   └── storage/                 # runtime: results/ (mask preview PNGs)
+├── storage/                     # runtime: uploads/, masks/, results/
 ├── scripts/
-│   ├── download_sam_weights.py # checkpoint downloader (cross-platform)
-│   └── download_sam_weights.sh
-├── tests/                      # pytest: test_images, test_sam, test_generations, test_migration
+│   ├── download_sam_weights.py  # checkpoint downloader (cross-platform, Python)
+│   └── download_sam_weights.sh  # checkpoint downloader (bash)
+├── tests/
+│   ├── conftest.py              # shared pytest fixtures/config
+│   ├── test_images.py           # upload/validation tests
+│   ├── test_sam.py              # MobileSAM segmentation tests
+│   ├── test_generations.py      # generation flow tests
+│   └── test_migration.py        # migration runner tests
+├── ai_experiments/
+│   └── mobilesam_test/          # MobileSAM research clone + experiments
+│       ├── test_mobilesam.py    # standalone SAM experiment script
+│       ├── test_images/         # sample cookie images for experiments
+│       │   └── cookie1.jpeg
+│       └── MobileSAM/           # vendored MobileSAM repo (research only)
+│           ├── mobile_sam/       # original MobileSAM package
+│           ├── MobileSAMv2/      # experimental v2 (EfficientViT-based)
+│           ├── app/              # demo Gradio app
+│           ├── scripts/          # export / AMG utilities
+│           ├── notebooks/        # example notebooks
+│           ├── assets/           # diagrams and sample images
+│           ├── weights/          # mobile_sam.pt (research copy)
+│           └── ...               # (README, LICENSE, setup.py, etc.)
 ├── docs/
-│   └── mobilesam-setup.md
-├── requirements.txt
-├── pyproject.toml
-├── env.example
+│   └── mobilesam-setup.md       # MobileSAM install & troubleshooting
+├── requirements.txt             # pinned Python dependencies
+├── pyproject.toml              # project metadata + tooling config
+├── env.example                 # template for .env
+├── crumb_studio.db             # local SQLite dev DB (gitignored)
 └── .env                        # (gitignored) real credentials
+```
+
+> **Note:** Files marked **(reserved)** exist in the tree but are not yet wired into the MVP runtime (auth, users, analytics, detections). They are scaffolding for the future expansion described in §9.
+
+### 7.3 Frontend (`frontend/`)
+
+```
+frontend/
+├── index.html                  # Vite HTML entry
+├── package.json                # npm dependencies & scripts
+├── package-lock.json
+├── vite.config.js              # Vite dev/build config
+├── eslint.config.js            # ESLint flat config
+├── tailwind.config.js          # Tailwind CSS config
+├── postcss.config.js           # PostCSS (Tailwind + Autoprefixer)
+├── README.md
+├── .gitignore
+├── dist/                       # production build output (gitignored)
+└── src/
+    ├── main.jsx                # React entry point
+    ├── App.jsx                 # Mounts StudioPage
+    ├── pages/
+    │   └── StudioPage.jsx      # Single-page flow orchestration
+    ├── components/studio/
+    │   ├── Header.jsx          # App header / branding
+    │   ├── UploadPanel.jsx     # Drag/drop + browse upload (KPI 4)
+    │   ├── AnnotationPanel.jsx # Wraps annotation workspace (KPI 5/6/7)
+    │   ├── annotation/
+    │   │   ├── AnnotationCanvas.jsx  # Konva canvas (brush/eraser/rect/polygon/AI-select)
+    │   │   └── Toolbar.jsx          # Tool/brush/undo/redo/zoom/clear controls
+    │   ├── PromptInput.jsx     # Defect prompt text (KPI 8)
+    │   ├── GenerateButton.jsx  # Generate trigger (KPI 10)
+    │   ├── ProgressIndicator.jsx    # Loading state
+    │   ├── ComparisonView.jsx  # Original vs generated (KPI 12)
+    │   └── DownloadButton.jsx  # Result download (KPI 13)
+    ├── lib/annotation/
+    │   └── maskEngine.js        # Pure rasterizer: shapes → black/white PNG mask
+    ├── hooks/
+    │   └── useAnnotationHistory.js  # Undo/redo shape-history state
+    ├── state/
+    │   └── studioStore.js       # Single source of truth for the studio flow
+    ├── services/
+    │   └── api.js               # REST client for the backend
+    └── styles/
+        └── globals.css          # Tailwind directives + global styles
+```
+
+### 7.4 Docs (`docs/`)
+
+```
+docs/
+├── ARCHITECTURE.md              # This document
+├── annotation-tool-decision.md  # Build-vs-Roboflow-vs-CVAT rationale
+└── FabricDefect_AI_Architecture_SRS.pdf  # Supplementary SRS reference
 ```
 
 ---
