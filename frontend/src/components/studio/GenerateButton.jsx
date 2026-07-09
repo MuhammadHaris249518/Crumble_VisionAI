@@ -1,7 +1,7 @@
 import { Sparkles, Loader2 } from "lucide-react";
 import { STATUS } from "../../state/studioStore";
 
-export default function GenerateButton({ disabled, status, onClick }) {
+export default function GenerateButton({ disabled, status, onClick, compact = false }) {
   const isGenerating = status === STATUS.GENERATING;
 
   return (
@@ -9,7 +9,9 @@ export default function GenerateButton({ disabled, status, onClick }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center justify-center gap-2 rounded-card bg-ink px-4 py-3 text-sm font-semibold text-text-onink shadow-card transition-all hover:bg-accent-dark active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-line disabled:text-text-secondary disabled:shadow-none"
+      className={`flex items-center justify-center gap-2 rounded-card border border-accent bg-white text-[13px] font-semibold text-accent transition-colors hover:bg-accent-soft disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-sunken disabled:text-text-muted ${
+        compact ? "px-4 py-2" : "w-full px-4 py-3"
+      }`}
     >
       {isGenerating ? (
         <>

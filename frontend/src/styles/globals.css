@@ -1,75 +1,21 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   html {
-    @apply bg-parchment text-text-primary;
+    @apply bg-surface text-text-primary;
   }
   body {
     @apply m-0 font-sans antialiased;
-    /* Faint grain so the parchment surface doesn't read as flat digital white */
-    background-image:
-      radial-gradient(rgba(36, 30, 26, 0.035) 0.6px, transparent 0.6px);
-    background-size: 3px 3px;
   }
-
-  ::selection {
-    background-color: #3e7c74;
-    color: #f3ecdf;
-  }
-
-  /* Visible, on-brand keyboard focus everywhere — no silent :focus-visible gaps */
   :focus-visible {
-    outline: 2px solid #3e7c74;
-    outline-offset: 2px;
-    border-radius: 4px;
+    @apply outline-none ring-2 ring-accent/30;
   }
 }
 
 @layer components {
-  /* Signature motif: instrument/scan corner brackets, used on image + drop
-     surfaces to tie the "annotate a precise region" idea to the chrome
-     around it. Pure pseudo-elements — adds no DOM nodes, so it never
-     interferes with canvas/img measurement logic. */
-  .corner-frame {
-    position: relative;
-  }
-  .corner-frame::before,
-  .corner-frame::after {
-    content: "";
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    pointer-events: none;
-    z-index: 20;
-  }
-  .corner-frame::before {
-    top: 10px;
-    left: 10px;
-    border-top: 2px solid var(--corner-color, #3e7c74);
-    border-left: 2px solid var(--corner-color, #3e7c74);
-    opacity: 0.85;
-  }
-  .corner-frame::after {
-    bottom: 10px;
-    right: 10px;
-    border-bottom: 2px solid var(--corner-color, #3e7c74);
-    border-right: 2px solid var(--corner-color, #3e7c74);
-    opacity: 0.85;
-  }
-
-  /* Step eyebrow used on each panel header */
-  .step-tag {
-    @apply inline-flex h-6 items-center justify-center rounded-[4px] border border-line bg-muted px-1.5 font-mono text-[11px] font-medium tracking-wideish text-text-secondary;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
+  .tool-btn {
+    @apply inline-flex items-center gap-1.5 rounded-card border border-line px-2.5 py-1.5 text-[11px] font-medium text-text-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
 }

@@ -16,7 +16,7 @@ export default function DownloadButton({ resultUrl, disabled }) {
       type="button"
       onClick={handleDownload}
       disabled={disabled}
-      className="flex items-center gap-2 rounded-card border border-line bg-paper px-4 py-2 text-sm font-medium text-text-primary shadow-card transition-colors hover:border-accent hover:text-accent-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:text-text-primary"
+      className="flex items-center gap-2 rounded-card border border-line bg-white px-4 py-2 text-[13px] font-medium text-text-primary transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Download className="h-4 w-4" />
       Download High-Quality Image

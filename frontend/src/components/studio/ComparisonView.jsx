@@ -1,28 +1,24 @@
-import { ImageOff, Sparkles } from "lucide-react";
+import { ImageOff } from "lucide-react";
+import StepBadge from "./StepBadge";
 
-function ImageSlot({ label, url, emptyText, tag }) {
+function ImageSlot({ label, url, emptyText, badge }) {
   return (
     <div className="flex-1">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-wideish text-text-secondary">
-          {label}
-        </p>
-        {tag && url && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[10px] font-medium text-accent-dark">
-            <Sparkles className="h-2.5 w-2.5" /> AI generated
+      <div className="mb-2 flex items-center gap-2">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-text-muted">{label}</p>
+        {badge && (
+          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
+            AI generated
           </span>
         )}
       </div>
-      <div
-        className="corner-frame flex aspect-square w-full items-center justify-center overflow-hidden rounded-card border border-line bg-muted/40"
-        style={{ "--corner-color": tag ? "#B5482A" : "#3E7C74" }}
-      >
+      <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-card border border-line bg-surface">
         {url ? (
           <img src={url} alt={label} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex flex-col items-center gap-2 text-text-secondary">
+          <div className="flex flex-col items-center gap-2 text-text-muted">
             <ImageOff className="h-6 w-6" />
-            <p className="text-xs">{emptyText}</p>
+            <p className="text-[11px]">{emptyText}</p>
           </div>
         )}
       </div>
@@ -32,12 +28,10 @@ function ImageSlot({ label, url, emptyText, tag }) {
 
 export default function ComparisonView({ originalUrl, resultUrl }) {
   return (
-    <div className="rounded-card border border-line bg-paper p-4 shadow-card">
+    <div className="rounded-panel border border-line bg-white p-3.5 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <span className="step-tag">04</span>
-        <h2 className="font-display text-[15px] font-semibold text-text-primary">
-          Compare Result
-        </h2>
+        <StepBadge n={4} />
+        <p className="text-[13px] font-medium text-text-primary">Compare Result</p>
       </div>
       <div className="flex flex-col gap-4 sm:flex-row">
         <ImageSlot label="Original" url={originalUrl} emptyText="No image uploaded yet" />
@@ -45,7 +39,7 @@ export default function ComparisonView({ originalUrl, resultUrl }) {
           label="Generated"
           url={resultUrl}
           emptyText="Your generated result will appear here"
-          tag
+          badge={Boolean(resultUrl)}
         />
       </div>
     </div>

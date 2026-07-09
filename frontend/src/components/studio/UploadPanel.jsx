@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
-import { UploadCloud, X, ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
+import { UploadCloud, X, ImageIcon, Loader2 } from "lucide-react";
 import { uploadImage } from "../../services/api";
+import StepBadge from "./StepBadge";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png"];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // mirrors the backend rule defined in KPI 2
@@ -65,12 +66,10 @@ export default function UploadPanel({ image, onImageChange }) {
   };
 
   return (
-    <div className="rounded-card border border-line bg-paper p-4 shadow-card">
+    <div className="flex h-full flex-col rounded-panel border border-line bg-white p-3.5 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <span className="step-tag">01</span>
-        <h2 className="font-display text-[15px] font-semibold text-text-primary">
-          Upload Image
-        </h2>
+        <StepBadge n={1} />
+        <p className="text-[13px] font-medium text-text-primary">Upload image</p>
       </div>
 
       {!image ? (
@@ -84,65 +83,55 @@ export default function UploadPanel({ image, onImageChange }) {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           disabled={uploading}
-          className={`corner-frame flex w-full flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed px-4 py-10 text-center transition-colors disabled:cursor-wait ${
-            isDragging
-              ? "border-accent bg-accent/5"
-              : "border-line bg-muted/60 hover:bg-muted"
+          className={`flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-card border border-dashed px-4 py-9 text-center transition-colors disabled:cursor-wait ${
+            isDragging ? "border-accent bg-accent-soft/40" : "border-line-strong bg-surface"
           }`}
-          style={{ "--corner-color": "#3E7C74" }}
         >
           {uploading ? (
             <>
               <Loader2 className="h-8 w-8 animate-spin text-accent" />
-              <p className="text-sm font-medium text-text-primary">Uploading to server…</p>
+              <p className="text-[13px] font-medium text-text-primary">Uploading to server…</p>
             </>
           ) : (
             <>
-              <UploadCloud className="h-8 w-8 text-text-secondary" />
-              <p className="text-sm font-medium text-text-primary">
-                Drag &amp; drop a cookie or biscuit image
+              <UploadCloud className="h-8 w-8 text-text-muted" />
+              <p className="text-[13px] font-medium text-text-primary">
+                Drag & drop a cookie or biscuit image
               </p>
-              <p className="font-mono text-xs text-text-secondary">
-                or click to browse · JPG / PNG · up to 10MB
+              <p className="text-[11px] text-text-secondary">
+                or click to browse · JPG/PNG · up to 10MB
               </p>
             </>
           )}
         </button>
       ) : (
-        <div className="flex items-center gap-3 rounded-card border border-line bg-muted/40 p-3">
-          <div
-            className="corner-frame h-16 w-16 shrink-0 overflow-hidden rounded-[6px]"
-            style={{ "--corner-color": "#3E7C74" }}
-          >
-            <img
-              src={image.previewUrl}
-              alt="Uploaded preview"
-              className="h-16 w-16 object-cover"
-            />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-card border border-line bg-surface p-4">
+          <img
+            src={image.previewUrl}
+            alt="Uploaded preview"
+            className="h-40 w-full max-w-xs rounded-card object-cover"
+          />
+          <div className="flex w-full max-w-xs items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-text-primary">{image.name}</p>
+              <p className="mt-0.5 font-mono text-[11px] text-text-secondary">
+                {(image.size / 1024).toFixed(0)} KB
+                {image.id ? (
+                  <span className="ml-2 text-success">✓ synced</span>
+                ) : (
+                  <span className="ml-2 text-warning">⟳ syncing…</span>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemove}
+              aria-label="Remove image"
+              className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-surface-sunken hover:text-alert"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-text-primary">{image.name}</p>
-            <p className="font-mono text-xs text-text-secondary">
-              {(image.size / 1024).toFixed(0)} KB
-              {image.id ? (
-                <span className="ml-2 inline-flex items-center gap-1 text-success">
-                  <CheckCircle2 className="h-3 w-3" /> Synced
-                </span>
-              ) : (
-                <span className="ml-2 inline-flex items-center gap-1 text-warning">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
-                </span>
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleRemove}
-            aria-label="Remove image"
-            className="rounded-full p-1.5 text-text-secondary transition-colors hover:bg-clay/10 hover:text-clay"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
       )}
 
@@ -154,13 +143,9 @@ export default function UploadPanel({ image, onImageChange }) {
         onChange={(e) => validateAndSet(e.target.files?.[0])}
       />
 
-      {error && (
-        <p className="mt-2 rounded-[6px] border border-clay/30 bg-clay/5 px-2.5 py-1.5 text-xs font-medium text-clay">
-          {error}
-        </p>
-      )}
+      {error && <p className="mt-2 text-[11px] font-medium text-alert">{error}</p>}
       {!image && !error && (
-        <p className="mt-2 flex items-center gap-1 font-mono text-xs text-text-secondary">
+        <p className="mt-2 flex items-center gap-1 text-[11px] text-text-muted">
           <ImageIcon className="h-3.5 w-3.5" /> No image selected yet
         </p>
       )}
