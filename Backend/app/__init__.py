@@ -1,1 +1,0 @@
-# Crumble VisionAI backend package
