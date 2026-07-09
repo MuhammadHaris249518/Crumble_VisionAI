@@ -15,12 +15,84 @@ import logging
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+import torch
+from diffusers import StableDiffusionXLInpaintPipeline
+from PIL import Image, ImageFilter
 
 logger = logging.getLogger(__name__)
 
-_BACKEND_ROOT = Path(__file__).resolve().parent.parent
-_RESULT_DIR = _BACKEND_ROOT / "storage" / "results"
+# Points at Synthetic_AI/3_models relative to this file's location
+_SYNTHETIC_AI_ROOT = Path(__file__).resolve().parents[4] / "Synthetic_AI"
+_MODEL_PATH = _SYNTHETIC_AI_ROOT / "3_models" / "stable-diffusion-xl-1.0-inpainting-0.1"
+_LORA_DIR = _SYNTHETIC_AI_ROOT / "3_models"
+_LORA_FILENAME = "cookie_defect_lora.safetensors"
+
+_pipe = None
+
+
+def _load_pipeline():
+    """Lazily load the SDXL inpainting pipeline once. Uses the LoRA if
+    present, otherwise runs the base model only (fine — your friend hasn't
+    trained the LoRA yet)."""
+    global _pipe
+    if _pipe is None:
+        if not _MODEL_PATH.exists():
+            raise RuntimeError(
+                f"Base model not found at {_MODEL_PATH}. Run "
+                "`python Synthetic_AI/4_scripts/download_model.py` first."
+            )
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype = torch.float16 if device == "cuda" else torch.float32
+        logger.info("Loading SDXL inpainting pipeline on %s...", device)
+
+        _pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
+            str(_MODEL_PATH), torch_dtype=dtype, local_files_only=True,
+        )
+        if device == "cuda":
+            _pipe.enable_model_cpu_offload()
+        _pipe.enable_attention_slicing()
+        _pipe.enable_vae_slicing()
+
+        lora_full_path = _LORA_DIR / _LORA_FILENAME
+        if lora_full_path.exists():
+            _pipe.load_lora_weights(str(_LORA_DIR), weight_name=_LORA_FILENAME)
+            logger.info("Loaded fine-tuned LoRA weights.")
+        else:
+            logger.info("No LoRA found yet — running base model only.")
+    return _pipe
+
+
+def _generate_with_real_model(source: Image.Image, mask_img: Image.Image, prompt: str) -> Image.Image:
+    pipe = _load_pipeline()
+
+    init_image = source.resize((1024, 1024))
+    mask_gray = mask_img.convert("L").resize((1024, 1024))
+    mask_array = [255 if px > 20 else 0 for px in mask_gray.getdata()]
+    mask_clean = Image.new("L", mask_gray.size)
+    mask_clean.putdata(mask_array)
+    mask_clean = mask_clean.filter(ImageFilter.GaussianBlur(radius=12))
+
+    result = pipe(
+        prompt=prompt,
+        negative_prompt="blurry, smooth, plastic texture, cartoon, drawing, 3d render",
+        image=init_image,
+        mask_image=mask_clean,
+        height=1024, width=1024,
+        strength=0.95, guidance_scale=7.0, num_inference_steps=40,
+    ).images[0]
+
+    return result.resize(source.size)  # scale back to original dimensions
+
+# IMPORTANT: This must resolve to the SAME directory that the `/storage`
+# StaticFiles mount in `app/main.py` serves (it uses `Path("storage").resolve()`,
+# i.e. a CWD-relative path). If we wrote results under the package root
+# (`Backend/storage/...`) while the mount serves `<cwd>/storage/...`, the two
+# would diverge whenever the app is launched from a directory other than
+# `Backend/`, the frontend's `/storage/results/...` <img> would 404, and the
+# generated image would never appear in ComparisonView. Keeping both
+# CWD-relative guarantees they always align.
+_RESULT_DIR = Path("storage/results").resolve()
 
 
 def _load_mask(mask_path: str, target_size: tuple[int, int]) -> np.ndarray:
@@ -173,26 +245,14 @@ _PROMPT_EFFECTS = {
     "broken": _apply_broken_edge_effect,
 }
 
-
 def generate_defect(
     source_path: Path,
     mask_path: str,
     generation_id: str,
     prompt: str,
 ) -> Path:
-    """
-    Generate a defect image, constrained to the user's mask region.
-
-    The mask (black/white PNG) defines the editable area:
-      - White = region to modify
-      - Black = protected, left unchanged
-
-    Until Workstream B delivers the real model, this applies a synthetic
-    effect matched to the prompt category. When the real model is ready,
-    replace the body of this function with a call to the served model.
-    """
     source = Image.open(source_path).convert("RGB")
-    orig_size = source.size  # (width, height)
+    orig_size = source.size
 
     mask_arr = _load_mask(mask_path, orig_size)
 
@@ -200,10 +260,15 @@ def generate_defect(
         logger.warning("Mask is empty, returning original image")
         result = source
     else:
-        prompt_lower = prompt.strip().lower()
-        effect_fn = _PROMPT_EFFECTS.get(prompt_lower, _apply_generic_effect)
-        logger.info("Applying effect '%s' within mask region", prompt_lower)
-        result = effect_fn(source, mask_arr)
+        try:
+            mask_img = Image.open(mask_path).convert("L")
+            result = _generate_with_real_model(source, mask_img, prompt)
+            logger.info("Generated using real SDXL model")
+        except Exception as exc:
+            logger.warning("Real model failed (%s) — falling back to stub effect", exc)
+            prompt_lower = prompt.strip().lower()
+            effect_fn = _PROMPT_EFFECTS.get(prompt_lower, _apply_generic_effect)
+            result = effect_fn(source, mask_arr)
 
     _RESULT_DIR.mkdir(parents=True, exist_ok=True)
     result_path = _RESULT_DIR / f"result_{generation_id}.png"

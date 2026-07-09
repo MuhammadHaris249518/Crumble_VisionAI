@@ -47,7 +47,7 @@ export default function StudioPage() {
         maskDataUrl: studio.mask.dataUrl,
       });
 
-      studio.setResult({ url: result.result_url });
+      studio.setResult({ url: result.result_url, mask_url: result.mask_url });
       studio.setStatus(STATUS.COMPLETE);
     } catch (err) {
       studio.setError(err.message || "Generation failed.");
@@ -92,10 +92,10 @@ export default function StudioPage() {
         </div>
 
         <div className="mt-6">
-          <ComparisonView
-            originalUrl={studio.image?.previewUrl}
-            resultUrl={studio.result?.url}
-          />
+        <ComparisonView
+          originalUrl={studio.image?.previewUrl}
+          resultUrl={studio.result?.mask_url || studio.result?.url}
+        />
         </div>
 
         <div className="mt-6 flex justify-end">

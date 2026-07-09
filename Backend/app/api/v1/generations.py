@@ -98,12 +98,15 @@ async def create_generation(
         db, generation, status="complete", result_path=str(result_path)
     )
 
+    mask_filename = Path(generation.mask_reference).name if generation.mask_reference else None
+
     return GenerationResponse(
         id=generation.id,
         image_id=generation.image_id,
         prompt=generation.prompt,
         status=generation.status,
         result_url=f"/storage/results/{result_path.name}",
+        mask_url=f"/storage/masks/{mask_filename}" if mask_filename else None,
         error_message=generation.error_message,
         created_at=generation.created_at,
         updated_at=generation.updated_at,
@@ -127,12 +130,17 @@ async def get_generation(generation_id: str, db: Session = Depends(get_db)):
     if generation.result_path:
         result_url = f"/storage/results/{Path(generation.result_path).name}"
 
+    mask_url = None
+    if generation.mask_reference:
+        mask_url = f"/storage/masks/{Path(str(generation.mask_reference)).name}"
+
     return GenerationResponse(
         id=generation.id,
         image_id=generation.image_id,
         prompt=generation.prompt,
         status=generation.status,
         result_url=result_url,
+        mask_url=mask_url,
         error_message=generation.error_message,
         created_at=generation.created_at,
         updated_at=generation.updated_at,
