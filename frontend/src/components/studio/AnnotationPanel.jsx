@@ -21,9 +21,6 @@ export default function AnnotationPanel({ image, mask }) {
             <p className="text-[13px] font-medium text-text-primary">
               Upload an image to begin annotation
             </p>
-            <p className="max-w-xs text-[11px] text-text-secondary">
-              The Roboflow annotation interface will load here once an image is uploaded.
-            </p>
           </>
         ) : (
           <>
