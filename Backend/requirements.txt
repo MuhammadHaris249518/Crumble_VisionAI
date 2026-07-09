@@ -19,3 +19,8 @@ numpy==1.26.4
 git+https://github.com/ChaoningZhang/MobileSAM.git@master#egg=mobile_sam
 
 pytest==8.3.3
+# Generation model (SDXL Inpainting, base model for now — LoRA added later)
+diffusers>=0.30.0
+transformers>=4.43.0
+accelerate>=0.33.0
+peft>=0.7.0
