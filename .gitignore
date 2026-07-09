@@ -218,3 +218,5 @@ docs/build/
 !*.ini
 
 Backend/ai_experiments/mobilesam_test/MobileSAM/
+*.safetensors
+Synthetic_AI/3_models/
