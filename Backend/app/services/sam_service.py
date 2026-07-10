@@ -47,7 +47,11 @@ def _save_debug_mask_preview(clipped_mask: np.ndarray, image_id: str) -> Path:
     every /sam/segment request; each call overwrites the previous preview
     for that image_id.
     """
-    preview_dir = Path(__file__).resolve().parent.parent / "storage" / "results"
+    # Must match the CWD-relative path used by generation_service.py's
+    # _RESULT_DIR and the "/storage" StaticFiles mount in main.py — see the
+    # comment above _RESULT_DIR in generation_service.py for why this has to
+    # be CWD-relative (uvicorn's launch directory), not package-relative.
+    preview_dir = Path("storage/results").resolve()
     preview_dir.mkdir(parents=True, exist_ok=True)
 
     inverted = np.where(clipped_mask, 0, 255).astype(np.uint8)

@@ -15,8 +15,9 @@ class Image(Base):
     content_type = Column(String(50), nullable=False)
     size_bytes = Column(Integer, nullable=False)
     storage_path = Column(String(500), nullable=False)
-    # Set once this image has been uploaded into the Roboflow project for
-    # annotation (KPI 5/6). Null until POST /annotations/session runs.
+    # Currently unused — Roboflow annotation flow was replaced by MobileSAM
+    # (see docs/annotation-tool-decision.md). Left in place pending a
+    # decision on whether to remove it in a future migration.
     roboflow_image_id = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

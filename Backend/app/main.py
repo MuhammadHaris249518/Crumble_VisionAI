@@ -34,9 +34,13 @@ if not SAM_CHECKPOINT_PATH.exists():
 
 app = FastAPI(title=settings.APP_NAME)
 
+# Explicit origin allowlist, driven by .env so dev/prod can differ without
+# code changes. CORS spec forbids "*" combined with allow_credentials=True —
+# browsers will silently drop credentialed requests against a wildcard
+# origin, so we must list origins explicitly instead.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

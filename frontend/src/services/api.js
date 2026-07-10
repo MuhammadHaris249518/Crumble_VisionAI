@@ -25,8 +25,9 @@ async function apiFetch(url, options = {}) {
   } catch (networkErr) {
     // Completely unreachable (no internet, backend stopped, CORS preflight killed)
     throw new Error(
-      "Cannot reach the backend — make sure the Camber notebook is running " +
-      "and the ngrok URL in vite.config.js is current."
+      "Cannot reach the backend — make sure the FastAPI server is running " +
+      "on localhost:8000.",
+      { cause: networkErr },
     );
   }
 
@@ -41,7 +42,9 @@ async function apiFetch(url, options = {}) {
     // Non-JSON body (HTML error page, empty string, etc.)
     if (!res.ok) {
       const hint = raw.includes("ngrok")
-        ? " The ngrok tunnel may have expired — update NGROK_TARGET in vite.config.js."
+        ? " The ngrok tunnel to the Colab inpainting service may have " +
+          "expired — get a fresh URL from the Colab notebook and update " +
+          "INPAINTING_SERVICE_URL in Backend/.env, then restart the backend."
         : "";
       throw new Error(`Backend returned ${res.status} with a non-JSON body.${hint}`);
     }
@@ -85,25 +88,6 @@ export async function generateImage({ imageId, prompt, maskDataUrl }) {
       mask_data: maskDataUrl,
     }),
   });
-}
-
-/**
- * Creates (or reuses) a Roboflow annotation session for an uploaded image.
- * Returns { roboflow_image_id, annotate_url }.
- */
-export async function createRoboflowSession(imageId) {
-  return apiFetch(
-    `${BASE}/annotations/session?image_id=${encodeURIComponent(imageId)}`,
-    { method: "POST" }
-  );
-}
-
-/**
- * Polls Roboflow (via backend) for a finished annotation.
- * Returns { ready, mask_data, message }.
- */
-export async function fetchRoboflowMask(imageId) {
-  return apiFetch(`${BASE}/annotations/mask/${encodeURIComponent(imageId)}`);
 }
 
 /**

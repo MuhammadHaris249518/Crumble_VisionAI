@@ -28,7 +28,11 @@ class Settings(BaseSettings):
 
     # MobileSAM
     SAM_WEIGHTS_DIR: str = "app/ml/sam/weights"
-    INPAINTING_SERVICE_URL: str = ""   # <-- add this lin
+    INPAINTING_SERVICE_URL: str = ""
+
+    # Explicit CORS allowlist — no wildcard, see main.py comment for why.
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
