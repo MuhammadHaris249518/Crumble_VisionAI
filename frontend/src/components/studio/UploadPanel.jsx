@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import { UploadCloud, X, ImageIcon, Loader2 } from "lucide-react";
+import { UploadCloud, X, ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { uploadImage } from "../../services/api";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png"];
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // mirrors the backend rule defined in KPI 2
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 export default function UploadPanel({ image, onImageChange }) {
   const inputRef = useRef(null);
@@ -19,12 +19,10 @@ export default function UploadPanel({ image, onImageChange }) {
         return;
       }
       if (file.size > MAX_SIZE_BYTES) {
-        setError("Image must be smaller than 10MB.");
+        setError("Image must be smaller than 10 MB.");
         return;
       }
       setError(null);
-
-      // Show preview immediately for responsiveness
       onImageChange((prev) => ({
         ...(prev || {}),
         id: null,
@@ -33,15 +31,10 @@ export default function UploadPanel({ image, onImageChange }) {
         size: file.size,
         previewUrl: URL.createObjectURL(file),
       }));
-
-      // Upload to backend to get a real image_id
       setUploading(true);
       try {
         const result = await uploadImage(file);
-        onImageChange((prev) => ({
-          ...(prev || {}),
-          id: result.image_id,
-        }));
+        onImageChange((prev) => ({ ...(prev || {}), id: result.image_id }));
       } catch (err) {
         setError(err.message || "Upload to server failed.");
       } finally {
@@ -65,56 +58,80 @@ export default function UploadPanel({ image, onImageChange }) {
   };
 
   return (
-    <div className="rounded-card border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold text-text-primary">1. Upload Image</h2>
+    <div className="card p-5 animate-fade-in">
+      {/* Step label */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">1</span>
+        <h2 className="text-sm font-semibold text-text-primary">Upload Image</h2>
+      </div>
 
       {!image ? (
         <button
           type="button"
           onClick={() => !uploading && inputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           disabled={uploading}
-          className={`flex w-full flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed px-4 py-10 text-center transition-colors disabled:cursor-wait ${
-            isDragging ? "border-accent bg-accent/5" : "border-gray-300 bg-surface"
+          className={`group relative flex w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-panel border-2 border-dashed px-4 py-12 text-center transition-all duration-200 disabled:cursor-wait ${
+            isDragging
+              ? "border-accent bg-accent/5 shadow-accent"
+              : "border-line-strong bg-surface-sunken hover:border-accent hover:bg-accent/[0.03]"
           }`}
         >
+          {/* Animated gradient bg on drag */}
+          {isDragging && (
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/10 to-transparent" />
+          )}
+
           {uploading ? (
             <>
-              <Loader2 className="h-8 w-8 animate-spin text-accent" />
-              <p className="text-sm font-medium text-text-primary">Uploading to server…</p>
+              <Loader2 className="h-10 w-10 animate-spin text-accent" />
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Uploading…</p>
+                <p className="text-xs text-text-muted">Sending to backend</p>
+              </div>
             </>
           ) : (
             <>
-              <UploadCloud className="h-8 w-8 text-text-secondary" />
-              <p className="text-sm font-medium text-text-primary">
-                Drag & drop a cookie or biscuit image
-              </p>
-              <p className="text-xs text-text-secondary">
-                or click to browse · JPG/PNG · up to 10MB
-              </p>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+                isDragging ? "border-accent bg-accent/10" : "border-line-strong bg-surface-card group-hover:border-accent group-hover:bg-accent/5"
+              }`}>
+                <UploadCloud className={`h-6 w-6 transition-colors ${isDragging ? "text-accent" : "text-text-muted group-hover:text-accent"}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">
+                  {isDragging ? "Release to upload" : "Drag & drop a cookie image"}
+                </p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  or <span className="text-accent underline underline-offset-2">click to browse</span> · JPG / PNG · max 10 MB
+                </p>
+              </div>
             </>
           )}
         </button>
       ) : (
-        <div className="flex items-center gap-3 rounded-card border border-gray-200 p-3">
-          <img
-            src={image.previewUrl}
-            alt="Uploaded preview"
-            className="h-16 w-16 rounded-card object-cover"
-          />
+        <div className="group flex items-center gap-3 rounded-panel border border-line bg-surface-sunken p-3 transition-all animate-slide-up">
+          <div className="relative h-16 w-16 flex-shrink-0">
+            <img
+              src={image.previewUrl}
+              alt="Uploaded preview"
+              className="h-full w-full rounded-card object-cover shadow-card"
+            />
+            {image.id && (
+              <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-success ring-2 ring-surface-card">
+                <CheckCircle2 className="h-3 w-3 text-white" />
+              </span>
+            )}
+          </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-text-primary">{image.name}</p>
-            <p className="text-xs text-text-secondary">
-              {(image.size / 1024).toFixed(0)} KB
+            <p className="truncate text-sm font-semibold text-text-primary">{image.name}</p>
+            <p className="text-xs text-text-muted">{(image.size / 1024).toFixed(0)} KB</p>
+            <p className="mt-0.5 text-xs font-medium">
               {image.id ? (
-                <span className="ml-2 text-success">✓ Synced</span>
+                <span className="text-success">✓ Synced with backend</span>
               ) : (
-                <span className="ml-2 text-amber-500">⟳ Syncing…</span>
+                <span className="text-warning">⟳ Syncing…</span>
               )}
             </p>
           </div>
@@ -122,7 +139,7 @@ export default function UploadPanel({ image, onImageChange }) {
             type="button"
             onClick={handleRemove}
             aria-label="Remove image"
-            className="rounded-full p-1.5 text-text-secondary hover:bg-surface hover:text-alert"
+            className="rounded-full p-1.5 text-text-muted transition-colors hover:bg-alert/10 hover:text-alert"
           >
             <X className="h-4 w-4" />
           </button>
@@ -137,12 +154,40 @@ export default function UploadPanel({ image, onImageChange }) {
         onChange={(e) => validateAndSet(e.target.files?.[0])}
       />
 
-      {error && <p className="mt-2 text-xs font-medium text-alert">{error}</p>}
+      {error && (
+        <div className={`mt-3 flex items-start gap-2 rounded-card border px-3 py-2.5 ${
+          /ngrok|backend|reach|network|tunnel/i.test(error)
+            ? "border-warning/30 bg-warning/5"
+            : "border-alert/20 bg-alert/5"
+        }`}>
+          <span className={`mt-0.5 text-sm flex-shrink-0 ${
+            /ngrok|backend|reach|network|tunnel/i.test(error) ? "text-warning" : "text-alert"
+          }`}>
+            {/ngrok|backend|reach|network|tunnel/i.test(error) ? "⚡" : "⚠"}
+          </span>
+          <div>
+            <p className={`text-xs font-semibold ${
+              /ngrok|backend|reach|network|tunnel/i.test(error) ? "text-warning" : "text-alert"
+            }`}>
+              {/ngrok|backend|reach|network|tunnel/i.test(error)
+                ? "Backend unreachable — check ngrok URL in vite.config.js"
+                : error}
+            </p>
+            {/ngrok|backend|reach|network|tunnel/i.test(error) && (
+              <p className="mt-0.5 text-[10px] text-warning/70">
+                The image was previewed locally but could not be registered with the server.
+                Update NGROK_TARGET and restart Vite, then re-upload.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       {!image && !error && (
-        <p className="mt-2 flex items-center gap-1 text-xs text-text-secondary">
-          <ImageIcon className="h-3.5 w-3.5" /> No image selected yet
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
+          <ImageIcon className="h-3.5 w-3.5" />
+          No image selected yet
         </p>
       )}
     </div>
   );
-}
+}

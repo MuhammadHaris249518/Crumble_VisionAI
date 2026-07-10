@@ -91,7 +91,7 @@ function AnnotationWorkspace({ image, onMaskChange }) {
     <>
       <div
         ref={containerRef}
-        className="relative flex items-center justify-center overflow-hidden rounded-card border border-dashed border-gray-300 bg-surface"
+        className="relative flex items-center justify-center overflow-hidden rounded-panel border border-dashed border-line-strong bg-surface-sunken"
         style={{ minHeight: PANEL_HEIGHT }}
       >
         <AnnotationCanvas
@@ -148,28 +148,32 @@ function AnnotationWorkspace({ image, onMaskChange }) {
  */
 export default function AnnotationPanel({ image, mask, onMaskChange }) {
   return (
-    <div className="rounded-card border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-text-primary">2. Annotate Region</h2>
+    <div className="card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">2</span>
+          <h2 className="text-sm font-semibold text-text-primary">Annotate Region</h2>
+        </div>
         {mask && (
-          <span className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-            Mask ready
+          <span className="badge bg-success/10 text-success">
+            ✓ Mask ready
           </span>
         )}
       </div>
 
       {!image ? (
         <div
-          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-gray-300 bg-surface p-6 text-center"
+          className="flex flex-col items-center justify-center gap-3 rounded-panel border border-dashed border-line-strong bg-surface-sunken p-6 text-center"
           style={{ minHeight: PANEL_HEIGHT }}
         >
-          <Lock className="h-7 w-7 text-text-secondary" />
-          <p className="text-sm font-medium text-text-primary">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-line-strong bg-surface-card">
+            <Lock className="h-5 w-5 text-text-muted opacity-60" />
+          </div>
+          <p className="text-sm font-semibold text-text-primary">
             Upload an image to begin annotation
           </p>
-          <p className="max-w-xs text-xs text-text-secondary">
-            Paint, draw a rectangle, or trace a polygon over the region you want the AI to
-            modify.
+          <p className="max-w-xs text-xs text-text-muted">
+            Paint, draw a rectangle, or trace a polygon over the region you want the AI to modify.
           </p>
         </div>
       ) : (
