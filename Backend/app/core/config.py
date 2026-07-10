@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # MobileSAM
     SAM_WEIGHTS_DIR: str = "app/ml/sam/weights"
-
+    INPAINTING_SERVICE_URL: str = ""   # <-- add this lin
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
