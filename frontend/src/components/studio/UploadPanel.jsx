@@ -58,7 +58,7 @@ export default function UploadPanel({ image, onImageChange }) {
   };
 
   return (
-    <div className="card p-5 animate-fade-in">
+  <div className="card p-5 animate-fade-in h-full flex flex-col">
       {/* Step label */}
       <div className="mb-4 flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white">1</span>
@@ -73,7 +73,7 @@ export default function UploadPanel({ image, onImageChange }) {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           disabled={uploading}
-          className={`group relative flex w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-panel border-2 border-dashed px-4 py-12 text-center transition-all duration-200 disabled:cursor-wait ${
+          className={`group relative flex w-full flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-panel border-2 border-dashed px-4 py-12 text-center transition-all duration-200 disabled:cursor-wait ${
             isDragging
               ? "border-accent bg-accent/5 shadow-accent"
               : "border-line-strong bg-surface-sunken hover:border-accent hover:bg-accent/[0.03]"
@@ -190,4 +190,4 @@ export default function UploadPanel({ image, onImageChange }) {
       )}
     </div>
   );
-}
+}
