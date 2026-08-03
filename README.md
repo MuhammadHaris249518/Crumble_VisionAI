@@ -1,2 +1,2 @@
-# Fabricdefect_ai
-A full stack web design for an ai powered fabricdefectapp
+# Crumble_VisionAI
+A full stack Computer Vision powered web app for Cookies Detection
