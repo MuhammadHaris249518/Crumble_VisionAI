@@ -8,7 +8,9 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     APP_NAME: str = "Crumb Studio AI Backend"
 
-    DATABASE_URL: str = "sqlite:///./crumb_studio.db"
+    # Must be set via .env — PostgreSQL with psycopg2 driver.
+    # See env.example for the expected format.
+    DATABASE_URL: str = ""
 
     # Image upload (KPI 2)
     UPLOAD_DIR: str = "storage/uploads"
@@ -23,6 +25,9 @@ class Settings(BaseSettings):
     ROBOFLOW_PROJECT: str = ""
     ROBOFLOW_API_BASE: str = "https://api.roboflow.com"
     ROBOFLOW_APP_BASE: str = "https://app.roboflow.com"
+
+    # MobileSAM
+    SAM_WEIGHTS_DIR: str = "app/ml/sam/weights"
 
     class Config:
         env_file = ".env"

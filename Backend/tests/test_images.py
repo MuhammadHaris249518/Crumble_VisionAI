@@ -1,26 +1,13 @@
-# Repo path: Backend/tests/test_images.py  (NEW FILE)
+# Repo path: Backend/tests/test_images.py  (UPDATED — PostgreSQL only)
 import io
 import os
 import tempfile
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image as PILImage
 
-# Point the app at a throwaway upload dir + sqlite file before importing it
+# Point the app at a throwaway upload dir; DATABASE_URL comes from .env
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp())
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_crumb_studio.db")
-
-# Remove any stale test database so create_all() builds the schema fresh
-_db_path = Path("test_crumb_studio.db")
-if _db_path.exists():
-    _db_path.unlink()
-_db_path = Path("test_crumb_studio.db-wal")  # WAL journal
-if _db_path.exists():
-    _db_path.unlink()
-_db_path = Path("test_crumb_studio.db-shm")  # Shared memory
-if _db_path.exists():
-    _db_path.unlink()
 
 from app.main import app  # noqa: E402
 

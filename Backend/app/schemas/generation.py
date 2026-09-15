@@ -17,6 +17,7 @@ class GenerationResponse(BaseModel):
     prompt: str
     status: str
     result_url: Optional[str] = None
+    mask_url: Optional[str] = None
     error_message: Optional[str] = None
     created_at: datetime
     updated_at: datetime

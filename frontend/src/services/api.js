@@ -77,3 +77,33 @@ export async function fetchRoboflowMask(imageId) {
 
   return body;
 }
+
+/**
+ * Runs box-prompted MobileSAM segmentation for the user's dragged rectangle.
+ * Returns { mask_data } where mask_data is a data: URL PNG mask
+ * (white = editable region), matching the studio's mask contract.
+ *
+ * Backend contract (POST /api/v1/sam/segment):
+ *   { image_id: string, box: [x0, y0, x1, y1], point?: { x, y } }
+ * `box` is required (in image pixel coordinates). `point` is optional.
+ */
+export async function segmentWithSam({ imageId, box, point }) {
+  const res = await fetch(`${BASE}/sam/segment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      image_id: imageId,
+      box,
+      ...(point ? { point } : {}),
+    }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body.detail || "AI segmentation failed.");
+  }
+
+  return body;
+}

@@ -1,4 +1,3 @@
--- dialect: postgresql
 -- Migration 001: Add roboflow_image_id column to images table
 -- The column was added to the SQLAlchemy Image model but the PostgreSQL
 -- table was created before this column existed.
