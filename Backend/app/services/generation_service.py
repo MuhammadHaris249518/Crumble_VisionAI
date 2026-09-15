@@ -21,8 +21,8 @@ from PIL import Image, ImageFilter
 
 logger = logging.getLogger(__name__)
 
-# Points at Synthetic_AI/3_models relative to this file's location
-_SYNTHETIC_AI_ROOT = Path(__file__).resolve().parents[4] / "Synthetic_AI"
+# Points at synthetic_ai/3_models relative to this file's location
+_SYNTHETIC_AI_ROOT = Path(__file__).resolve().parents[3] / "synthetic_ai"
 _MODEL_PATH = _SYNTHETIC_AI_ROOT / "3_models" / "stable-diffusion-xl-1.0-inpainting-0.1"
 _LORA_DIR = _SYNTHETIC_AI_ROOT / "3_models"
 _LORA_FILENAME = "cookie_defect_lora.safetensors"
@@ -39,7 +39,7 @@ def _load_pipeline():
         if not _MODEL_PATH.exists():
             raise RuntimeError(
                 f"Base model not found at {_MODEL_PATH}. Run "
-                "`python Synthetic_AI/4_scripts/download_model.py` first."
+                "`python synthetic_ai/4_scripts/download_model.py` first."
             )
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
